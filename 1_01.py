@@ -35,23 +35,24 @@ class QuestionSimilarityFinder:
         self.q_emb_matrix = np.stack(self.df["question_embedding"].apply(lambda t: t.numpy()))
         self.cat_emb_matrix = np.stack(self.df["category_embedding"].apply(lambda t: t.numpy()))
 
-    def get_top_similar(self, user_question, top_n: int = 5):
-        # Получаем эмбеддинг запроса пользователя
+def get_top_similar(self, user_question, top_n: int = 5, threshold: float = 0.75):
+        # 1. Получаем эмбеддинг запроса пользователя
         user_q_emb = self.get_embedding(user_question)
-        user_q_emb_np = user_q_emb.unsqueeze(0).numpy()  # форма (1, dim)
+        user_q_emb_np = user_q_emb.unsqueeze(0).numpy()  # shape: (1, dim)
 
-        # Векторизованное вычисление косинусного сходства между запросом и всеми вопросами
-        q_sims = cosine_similarity(user_q_emb_np, self.q_emb_matrix)[0]
+        # 2. Вычисляем сходство между запросом и всеми вопросами (по тексту)
+        q_sims = cosine_similarity(user_q_emb_np, self.q_emb_matrix)[0]  # 1D массив длины = число вопросов
 
-        # Получаем индексы топ-10 вопросов по сходству текста вопроса
-        top10_indices = np.argsort(q_sims)[::-1][:10]
+        # 3. Выбираем топ-10 вопросов по сходству текста
+        num_top = min(len(q_sims), 10)
+        top10_indices = np.argsort(q_sims)[::-1][:num_top]
         top10_q_sims = q_sims[top10_indices]
 
-        # Для топ-10 вопросов вычисляем сходство между запросом и их категориями
+        # 4. Для топ-10 вопросов вычисляем сходство между запросом и их категориями
         top10_cat_emb = self.cat_emb_matrix[top10_indices]
         top10_c_sims = cosine_similarity(user_q_emb_np, top10_cat_emb)[0]
 
-        # Формируем лог для топ-10 вопросов
+        # Составляем DataFrame с метриками для топ-10 вопросов
         top10_logs = []
         for rank, orig_idx in enumerate(top10_indices):
             row = self.df.iloc[orig_idx]
@@ -62,23 +63,39 @@ class QuestionSimilarityFinder:
                 "сходство_вопрос": top10_q_sims[rank],
                 "сходство_категория": top10_c_sims[rank]
             })
-
         top10_df = pd.DataFrame(top10_logs)
 
-        # Суммируем сходство по вопросу и по категории
-        top10_df["суммарное_сходство"] = top10_df["сходство_вопрос"] + top10_df["сходство_категория"]
+        # 5. Определяем преобладающую категорию среди топ-10:
+        # Группируем по категории: считаем количество и среднее сходство (с запросом)
+        grp = top10_df.groupby("категория").agg(
+            count=('категория', 'count'),
+            avg_cat_sim=('сходство_категория', 'mean')
+        )
+        # Комбинированная метрика: можно взять произведение количества и среднего сходства
+        grp["combined"] = grp["count"] * grp["avg_cat_sim"]
+        best_category = grp["combined"].idxmax()
 
-        # Сортируем топ-10 по суммарной схожести (от наибольшего к наименьшему)
-        sorted_df = top10_df.sort_values(by="суммарное_сходство", ascending=False)
+        # 6. Вычисляем embedding для выбранной категории как среднее для всех вопросов топ-10 этой категории
+        indices_for_best = top10_df[top10_df["категория"] == best_category]["index"].values
+        embeddings = np.stack([self.df.loc[idx, "category_embedding"].numpy() for idx in indices_for_best])
+        best_category_emb = np.mean(embeddings, axis=0).reshape(1, -1)
 
-        # Выбираем финальный список: если отфильтрованных вопросов меньше top_n, возвращаем то, что есть
-        final_top = sorted_df.head(top_n)
+        # 7. Вычисляем косинусное сходство между embedding’ом каждой категории из топ-10 и выбранной категорией
+        top10_cat_sim_to_best = cosine_similarity(best_category_emb, top10_cat_emb)[0]
+        top10_df = top10_df.assign(сходство_категории_к_выбранной=top10_cat_sim_to_best)
 
+        # 8. Фильтруем вопросы: оставляем те, у которых сходство между их категорией и выбранной >= threshold
+        filtered_df = top10_df[top10_df["сходство_категории_к_выбранной"] >= threshold].copy()
+
+        # 9. Если после фильтрации осталось меньше, чем top_n, возвращаем имеющиеся (иначе берём top_n по сходству текста)
+        final_top = filtered_df.sort_values(by="сходство_вопрос", ascending=False).head(top_n)
+        
         return {
             "лог_поиска_топ_10": top10_df,
-            "топ_5_суммарное_сходство": final_top
+            "преобладающая_категория": best_category,
+            "отфильтрованные_вопросы": filtered_df,
+            "топ_по_категории": final_top
         }
-
 # Пример использования:
 if __name__ == '__main__':
     # Подготовка тестовых данных
