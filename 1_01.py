@@ -1,5 +1,6 @@
 import torch
 import pandas as pd
+import numpy as np
 from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -23,57 +24,70 @@ class QuestionSimilarityFinder:
         return self.mean_pooling(model_output, encoded_input['attention_mask'])[0].cpu()
 
     def prepare_question_base(self, df, question_column="вопрос", category_column="категория"):
+        """
+        Предварительно вычисляет эмбеддинги для текстов вопросов и категорий.
+        Создаются матрицы эмбеддингов для ускорения векторных вычислений.
+        """
         self.df = df.copy()
+        # Вычисляем эмбеддинги для вопросов и категорий
         self.df["question_embedding"] = self.df[question_column].apply(self.get_embedding)
         self.df["category_embedding"] = self.df[category_column].apply(self.get_embedding)
 
-    def get_top_similar(self, user_question, top_n: int = 5):
-        # Получаем эмбеддинг запроса пользователя
-        user_q_emb = self.get_embedding(user_question)
+        # Создаем матрицы эмбеддингов для вопросов и категорий
+        self.q_emb_matrix = np.stack(self.df["question_embedding"].apply(lambda t: t.numpy()))
+        self.cat_emb_matrix = np.stack(self.df["category_embedding"].apply(lambda t: t.numpy()))
 
-        logs = []
-        # Вычисляем сходство запроса с текстом вопроса
-        for idx, row in self.df.iterrows():
-            q_sim = cosine_similarity(
-                user_q_emb.unsqueeze(0).numpy(),
-                row["question_embedding"].unsqueeze(0).numpy()
-            )[0][0]
-            logs.append({
-                "index": idx,
+    def get_top_similar(self, user_question, top_n: int = 5):
+        # Получаем эмбеддинг запроса пользователя (для вопросов и для категорий – здесь используется один и тот же запрос)
+        user_q_emb = self.get_embedding(user_question)
+        user_q_emb_np = user_q_emb.unsqueeze(0).numpy()  # форма (1, dim)
+
+        # Векторизованное вычисление сходства между запросом и всеми вопросами
+        q_sims = cosine_similarity(user_q_emb_np, self.q_emb_matrix)[0]  # 1D массив, длина = число вопросов
+
+        # Получаем индексы топ-10 вопросов по сходству текста вопроса
+        top10_indices = np.argsort(q_sims)[::-1][:10]
+        top10_q_sims = q_sims[top10_indices]
+
+        # Для топ-10 вопросов вычисляем сходство между запросом и их категориями
+        top10_cat_emb = self.cat_emb_matrix[top10_indices]
+        top10_c_sims = cosine_similarity(user_q_emb_np, top10_cat_emb)[0]
+
+        # Составляем лог для топ-10 вопросов
+        top10_logs = []
+        for rank, orig_idx in enumerate(top10_indices):
+            row = self.df.iloc[orig_idx]
+            top10_logs.append({
+                "index": orig_idx,
                 "вопрос": row["вопрос"],
                 "категория": row["категория"],
-                "сходство_вопрос": q_sim
+                "сходство_вопрос": top10_q_sims[rank],
+                "сходство_категория": top10_c_sims[rank]
             })
 
-        # Сортируем по сходству вопроса и выбираем топ-10
-        sim_df = pd.DataFrame(logs).sort_values(by="сходство_вопрос", ascending=False).reset_index(drop=True)
-        top_10_df = sim_df.head(10)
+        top10_df = pd.DataFrame(top10_logs)
 
-        # Для топ-10 вопросов рассчитываем сходство между запросом и категорией каждого вопроса
-        cat_sims = []
-        for idx in top_10_df.index:
-            # Получаем соответствующий эмбеддинг категории из базы (он уже вычислен в prepare_question_base)
-            row = self.df.loc[top_10_df.loc[idx, "index"]]
-            c_sim = cosine_similarity(
-                user_q_emb.unsqueeze(0).numpy(),
-                row["category_embedding"].unsqueeze(0).numpy()
-            )[0][0]
-            cat_sims.append(c_sim)
-        top_10_df = top_10_df.assign(сходство_категория=cat_sims)
+        # Выбираем «выбранную» категорию – ту, у которой сходство (запрос – категория) максимально среди топ-10
+        best_cat_rel_idx = np.argmax(top10_c_sims)
+        best_category = top10_df.loc[best_cat_rel_idx, "категория"]
+        # Получаем эмбеддинг выбранной категории (по оригинальному индексу вопроса)
+        best_category_orig_idx = top10_df.loc[best_cat_rel_idx, "index"]
+        best_category_emb = self.df.loc[best_category_orig_idx, "category_embedding"].numpy().reshape(1, -1)
 
-        # Находим максимальное сходство по категории и определяем выбранную категорию
-        max_idx = top_10_df["сходство_категория"].idxmax()
-        best_category = top_10_df.loc[max_idx, "категория"]
+        # Вычисляем сходство между эмбеддингами категорий топ-10 вопросов и выбранной категорией
+        top10_cat_sim_to_best = cosine_similarity(best_category_emb, top10_cat_emb)[0]
 
-        # Фильтруем топ-10, оставляя только вопросы с выбранной категорией
-        filtered_df = top_10_df[top_10_df["категория"] == best_category].copy()
+        # Добавляем новую колонку с этой метрикой
+        top10_df = top10_df.assign(сходство_категории_к_выбранной=top10_cat_sim_to_best)
 
-        # Сортируем отфильтрованные вопросы по сходству вопроса и выбираем топ-5
-        final_top_5 = filtered_df.sort_values(by="сходство_вопрос", ascending=False).head(top_n)
+        # Сортируем топ-10 по данной метрике (от наибольшего к наименьшему)
+        sorted_df = top10_df.sort_values(by="сходство_категории_к_выбранной", ascending=False)
+
+        # Выбираем финальный список: если отфильтрованных вопросов меньше top_n, возвращаем то, что есть
+        final_top = sorted_df.head(top_n)
 
         return {
-            "лог_поиска_топ_10": top_10_df,
+            "лог_поиска_топ_10": top10_df,
             "выбранная_категория": best_category,
-            "топ_5_по_вопросу_и_категории": final_top_5
+            "топ_по_категории": final_top
         }
-
