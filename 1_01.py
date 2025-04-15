@@ -27,29 +27,41 @@ class QuestionSimilarityFinder:
         self.df["question_embedding"] = self.df[question_column].apply(self.get_embedding)
         self.df["category_embedding"] = self.df[category_column].apply(self.get_embedding)
 
-    def get_top_similar(self, user_question: str, user_category: str = "", top_n: int = 5):
-        # Получаем эмбеддинги для пользовательского запроса и категории
-        question_emb = self.get_embedding(user_question)
-        category_emb = self.get_embedding(user_category) if user_category else torch.zeros_like(question_emb)
+    def get_top_similar(self, user_question: str, user_category: str, top_n: int = 5):
+        # Эмбеддинги запроса
+        user_q_emb = self.get_embedding(user_question)
+        user_c_emb = self.get_embedding(user_category)
 
-        similarities = []
+        logs = []
         for idx, row in self.df.iterrows():
             q_sim = cosine_similarity(
-                question_emb.unsqueeze(0).numpy(),
+                user_q_emb.unsqueeze(0).numpy(),
                 row["question_embedding"].unsqueeze(0).numpy()
             )[0][0]
             c_sim = cosine_similarity(
-                category_emb.unsqueeze(0).numpy(),
+                user_c_emb.unsqueeze(0).numpy(),
                 row["category_embedding"].unsqueeze(0).numpy()
-            )[0][0] if user_category else 0
-            total_sim = (q_sim + c_sim) / 2  # усреднение схожести
-            similarities.append((total_sim, idx))
+            )[0][0]
+            avg_sim = (q_sim + c_sim) / 2
+            logs.append({
+                "index": idx,
+                "вопрос": row["вопрос"],
+                "категория": row["категория"],
+                "сходство_вопрос": q_sim,
+                "сходство_категория": c_sim,
+                "сходство_среднее": avg_sim
+            })
 
-        # Топ 10 по общей схожести
-        top_10 = sorted(similarities, key=lambda x: x[0], reverse=True)[:10]
-        top_df = self.df.loc[[idx for _, idx in top_10]].assign(score=[score for score, _ in top_10])
+        # DataFrame со всеми логами
+        sim_df = pd.DataFrame(logs).sort_values(by="сходство_среднее", ascending=False).reset_index(drop=True)
 
-        # Сортировка по категории
-        top_df = top_df.sort_values(by="категория")
+        # Топ 10 по средней схожести
+        top_10_df = sim_df.head(10)
 
-        return top_df.head(top_n)
+        # Топ 5 по средней схожести
+        top_5_combined = top_10_df.head(top_n)
+
+        return {
+            "лог_поиска": top_10_df,              # лог: 10 ближайших с метриками
+            "топ_5_общая_сходство": top_5_combined  # финальный результат
+        }
