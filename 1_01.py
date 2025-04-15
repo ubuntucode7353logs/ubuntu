@@ -1,62 +1,54 @@
-import re
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
 from sentence_transformers import SentenceTransformer
-import pymorphy2
+from pymorphy2 import MorphAnalyzer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-morph = pymorphy2.MorphAnalyzer()
-model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')  # Хорошо работает для ru/en
+morph = MorphAnalyzer()
+model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")  # Работает с русским
 
-# Простые стоп-слова, можно расширить
-STOP_WORDS = set([
-    "и", "в", "во", "не", "что", "он", "на", "я", "с", "со",
-    "как", "а", "то", "все", "она", "так", "его", "но", "да", "ты"
-])
+def extract_morph_tags(text):
+    tags = []
+    for word in text.split():
+        parsed = morph.parse(word)[0]
+        tags.append(str(parsed.tag))
+    return tags
 
+def morph_diff_penalty(tags1, tags2):
+    # Чем больше различий — тем больше штраф
+    diff_count = sum(1 for t1, t2 in zip(tags1, tags2) if t1 != t2)
+    max_len = max(len(tags1), len(tags2))
+    return diff_count / max_len if max_len else 0
 
-def clean_and_lemmatize(text):
-    # Убираем лишнее и лемматизируем
-    tokens = re.findall(r'\b\w+\b', text.lower())
-    lemmas = [morph.parse(token)[0].normal_form for token in tokens if token not in STOP_WORDS]
-    return lemmas
+def find_best_answer(df: pd.DataFrame, user_question: str):
+    # Векторизация вопросов
+    question_embeddings = model.encode(df["вопрос"].tolist())
+    user_embedding = model.encode([user_question])[0]
 
+    # Морфологический анализ
+    user_tags = extract_morph_tags(user_question)
+    penalties = []
 
-def compute_coverage(base_q_lemmas, client_q_lemmas):
-    if not base_q_lemmas:
-        return 0
-    overlap = set(base_q_lemmas) & set(client_q_lemmas)
-    return len(overlap) / len(base_q_lemmas)
+    for q in df["вопрос"]:
+        q_tags = extract_morph_tags(q)
+        penalty = morph_diff_penalty(user_tags, q_tags)
+        penalties.append(penalty)
 
+    # Косинусная близость
+    similarities = cosine_similarity([user_embedding], question_embeddings)[0]
 
-def match_question(client_question, knowledge_base, coverage_threshold=0.75):
-    client_lemmas = clean_and_lemmatize(client_question)
-    candidates = []
+    # Итоговая метрика — с учётом штрафа
+    adjusted_scores = similarities - np.array(penalties)
 
-    for base_q, answer in knowledge_base.items():
-        base_lemmas = clean_and_lemmatize(base_q)
-        coverage = compute_coverage(base_lemmas, client_lemmas)
-        if coverage >= coverage_threshold:
-            candidates.append((base_q, answer, coverage))
+    # Выбор наилучшего ответа
+    best_idx = np.argmax(adjusted_scores)
+    best_row = df.iloc[best_idx]
 
-    if not candidates:
-        return None  # или сообщение об уточнении
-
-    # Доработка: ранжируем по косинусной близости
-    client_embed = model.encode([client_question])
-    candidate_questions = [q for q, _, _ in candidates]
-    candidate_embeds = model.encode(candidate_questions)
-    sims = cosine_similarity(client_embed, candidate_embeds)[0]
-
-    best_idx = np.argmax(sims)
     return {
-        'вопрос_из_базы': candidates[best_idx][0],
-        'ответ': candidates[best_idx][1],
-        'coverage': candidates[best_idx][2],
-        'similarity': sims[best_idx]
+        "похожий_вопрос": best_row["вопрос"],
+        "ответ": best_row["ответ"],
+        "схожесть": similarities[best_idx],
+        "штраф": penalties[best_idx],
+        "итоговый_балл": adjusted_scores[best_idx]
     }
 
-def clean_and_lemmatize(text):
-    # Токенизация и лемматизация без удаления стоп-слов
-    tokens = re.findall(r'\b\w+\b', text.lower())
-    lemmas = [morph.parse(token)[0].normal_form for token in tokens]
-    return lemmas
