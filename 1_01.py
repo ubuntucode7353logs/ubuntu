@@ -22,46 +22,27 @@ class QuestionSimilarityFinder:
             model_output = self.model(**encoded_input)
         return self.mean_pooling(model_output, encoded_input['attention_mask'])[0].cpu()
 
-    def prepare_question_base(self, df: pd.DataFrame, question_column: str = "вопрос", category_column: str = "категория"):
+    def prepare_question_base(self, df, question_column="вопрос", category_column="категория"):
         self.df = df.copy()
         self.df["question_embedding"] = self.df[question_column].apply(self.get_embedding)
         self.df["category_embedding"] = self.df[category_column].apply(self.get_embedding)
 
-    def get_top_similar(self, user_question: str, user_category: str, top_n: int = 5):
-        # Эмбеддинги запроса
+    def get_top_similar(self, user_question, top_n: int = 5):
         user_q_emb = self.get_embedding(user_question)
-        user_c_emb = self.get_embedding(user_category)
 
         logs = []
         for idx, row in self.df.iterrows():
-            q_sim = cosine_similarity(
-                user_q_emb.unsqueeze(0).numpy(),
-                row["question_embedding"].unsqueeze(0).numpy()
-            )[0][0]
-            c_sim = cosine_similarity(
-                user_c_emb.unsqueeze(0).numpy(),
-                row["category_embedding"].unsqueeze(0).numpy()
-            )[0][0]
+            q_sim = cosine_similarity(user_q_emb.unsqueeze(0).numpy(),row["question_embedding"].unsqueeze(0).numpy())[0][0]
+            c_sim = cosine_similarity(user_q_emb.unsqueeze(0).numpy(),row["category_embedding"].unsqueeze(0).numpy())[0][0]
             avg_sim = (q_sim + c_sim) / 2
-            logs.append({
-                "index": idx,
-                "вопрос": row["вопрос"],
-                "категория": row["категория"],
-                "сходство_вопрос": q_sim,
-                "сходство_категория": c_sim,
-                "сходство_среднее": avg_sim
-            })
+            logs.append({"index": idx, "вопрос": row["вопрос"], "категория": row["категория"],
+                "сходство_вопрос": q_sim, "сходство_категория": c_sim, "сходство_среднее": avg_sim})
 
-        # DataFrame со всеми логами
         sim_df = pd.DataFrame(logs).sort_values(by="сходство_среднее", ascending=False).reset_index(drop=True)
-
-        # Топ 10 по средней схожести
         top_10_df = sim_df.head(10)
-
-        # Топ 5 по средней схожести
         top_5_combined = top_10_df.head(top_n)
 
         return {
-            "лог_поиска": top_10_df,              # лог: 10 ближайших с метриками
-            "топ_5_общая_сходство": top_5_combined  # финальный результат
+            "лог_поиска": top_10_df,
+            "топ_5_общая_сходство": top_5_combined
         }
