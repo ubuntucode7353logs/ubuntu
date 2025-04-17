@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
-
+import pymorphy3
 class QuestionSimilarityFinder:
     def __init__(self, model_path: str):
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -34,7 +34,51 @@ class QuestionSimilarityFinder:
 
         self.q_emb_matrix = np.stack(self.df["question_embedding"].apply(lambda t: t.numpy()))
         self.cat_emb_matrix = np.stack(self.df["category_embedding"].apply(lambda t: t.numpy()))
+def lemmatize_text(text):
+        morph = pymorphy3.MorphAnalyzer()
+        words = text.split()
+        lemmatized_words = [morph.parse(word)[0].normal_form for word in words]
+        return " ".join(lemmatized_words)
 
+class QuestionSimilarityFinderLemmatized:
+    def __init__(self, model_path: str):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model = AutoModel.from_pretrained(model_path)
+        self.morph = pymorphy3.MorphAnalyzer()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
+
+    def mean_pooling(self, model_output, attention_mask):
+        token_embeddings = model_output[0]
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        return torch.sum(token_embeddings * input_mask_expanded, dim=1) / \
+               torch.clamp(input_mask_expanded.sum(dim=1), min=1e-9)
+
+    def get_embedding(self, sentence: str):
+        lemmatized_sentence = lemmatize_text(sentence)
+        encoded_input = self.tokenizer(lemmatized_sentence, padding=True, truncation=True, return_tensors='pt').to(self.device)
+        with torch.no_grad():
+            model_output = self.model(**encoded_input)
+        return self.mean_pooling(model_output, encoded_input['attention_mask'])[0].cpu()
+
+    def prepare_question_base(self, df, question_column="вопрос", category_column="категория"):
+        self.df = df.copy()
+        self.df["question_embedding"] = self.df[question_column].apply(self.get_embedding)
+
+    def get_top_similar(self, user_question, top_n: int = 5):
+        user_q_emb = self.get_embedding(user_question)
+
+        logs = []
+        for idx, row in self.df.iterrows():
+            q_sim = cosine_similarity(user_q_emb.unsqueeze(0).numpy(), row["question_embedding"].unsqueeze(0).numpy())[0][0]
+            logs.append({"index": idx, "вопрос": row["вопрос"], "сходство_вопрос": q_sim, "ответ": row["ответ"]})
+
+        sim_df = pd.DataFrame(logs).sort_values(by="сходство_вопрос", ascending=False).reset_index(drop=True)
+        top_5_df = sim_df.head(top_n)
+
+        return {
+            "топ_5_общая_сходство": top_5_df
+        }
 def get_top_similar(self, user_question, top_n: int = 5, threshold: float = 0.75):
         # 1. Получаем эмбеддинг запроса пользователя
         user_q_emb = self.get_embedding(user_question)
@@ -142,4 +186,29 @@ if __name__ == '__main__':
 
     print("\nФинальный топ-5 вопросов (по суммарной схожести):")
     print(results["топ_5_суммарное_сходство"])
+
+from transformers import AutoModel, AutoTokenizer
+import torch
+
+# Очистим GPU, если есть
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
+
+# Загрузка модели
+model = AutoModel.from_pretrained("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
+# Перевод на GPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+# Создание тензора
+inputs = tokenizer("Пример текста", return_tensors="pt").to(device)
+with torch.no_grad():
+    _ = model(**inputs)
+
+# Печать использования
+if torch.cuda.is_available():
+    print(f"Пиковое использование памяти: {torch.cuda.max_memory_allocated() / 1e6:.2f} MB")
 
