@@ -1,0 +1,68 @@
+import pandas as pd
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
+import plotly.express as px
+
+# Загружаем данные
+df = pd.read_csv("data.csv")
+
+# Убедимся, что 'month' — это строка/дата
+df["month"] = pd.to_datetime(df["month"].astype(str), format="%Y%m")
+
+# Получаем список параметров (кроме технических столбцов)
+technical_cols = ['id', 'client_id', 'month']
+feature_cols = [col for col in df.columns if col not in technical_cols]
+
+# Инициализируем Dash
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    html.H2("Динамика параметров клиента до ухода"),
+    
+    dcc.Dropdown(
+        id='client-selector',
+        options=[{'label': str(cid), 'value': cid} for cid in df['client_id'].unique()],
+        placeholder='Выберите клиента'
+    ),
+
+    dcc.Checklist(
+        id='feature-selector',
+        options=[{'label': col, 'value': col} for col in feature_cols],
+        value=feature_cols[:3],  # по умолчанию 3 первых
+        labelStyle={'display': 'inline-block'}
+    ),
+
+    dcc.Graph(id='timeseries-graph')
+])
+
+
+@app.callback(
+    Output('timeseries-graph', 'figure'),
+    [Input('client-selector', 'value'),
+     Input('feature-selector', 'value')]
+)
+def update_graph(selected_client, selected_features):
+    if not selected_client or not selected_features:
+        return {}
+
+    client_data = df[df['client_id'] == selected_client].sort_values('month')
+
+    # Считаем последний месяц клиента — условный "уход"
+    last_month = client_data['month'].max()
+    client_data = client_data[client_data['month'] < last_month]
+
+    # Строим график
+    fig = px.line(
+        client_data,
+        x='month',
+        y=selected_features,
+        markers=True,
+        title=f"Параметры клиента {selected_client} по месяцам до ухода"
+    )
+    fig.update_layout(legend_title_text='Параметры')
+    return fig
+
+# Запуск
+if __name__ == '__main__':
+    app.run_server(debug=True)
