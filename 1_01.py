@@ -1,11 +1,12 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
-# Загрузка Excel с листами
-xls = pd.ExcelFile('clients.xlsx')
-months = ['202301', '202302', '202303', '202304', '202305', '202306', '202307', '202308', '202309', '202310', '202311', '202312']
-data = {month: xls.parse(month) for month in months}
+sheet_names = ['202301', '202302', '202303', '202304', '202305', '202306',
+               '202307', '202308', '202309', '202310', '202311', '202312']
+
+xls = 'clients.xlsx'
 
 total_clients = []
 lost_clients = []
@@ -13,33 +14,43 @@ new_clients = []
 
 all_seen_clients = set()
 
-for month in months:
-    df = data[month]
-    clients = set(df['CLIENTBASENUMBER'].unique())  # уникальные клиенты в месяце
-    
+for i, sheet in enumerate(tqdm(sheet_names, desc="Обработка месяцев")):
+    df = pd.read_excel(xls, sheet_name=sheet)
+    clients = set(df['CLIENTBASENUMBER'].unique())
     total_clients.append(len(clients))
-    lost_clients.append(df.loc[df['pr'] == True, 'CLIENTBASENUMBER'].nunique())  # ушедшие по уникальным
-    
-    new = clients - all_seen_clients  # новые клиенты — не встречались ранее
-    new_clients.append(len(new))
-    
+    lost_clients.append(df.loc[df['pr'] == True, 'CLIENTBASENUMBER'].nunique())
+    if i == 0:
+        new_clients.append(np.nan)
+    else:
+        new = clients - all_seen_clients
+        new_clients.append(len(new))
     all_seen_clients.update(clients)
 
-# Построение графика
-x = np.arange(len(months))
-width = 0.25
+def add_bar_labels(ax, values):
+    for i, v in enumerate(values):
+        if not np.isnan(v):
+            ax.text(i, v + max(values) * 0.01, str(int(v)), ha='center', va='bottom', fontsize=9)
 
-fig, ax = plt.subplots(figsize=(15,6))
-ax.bar(x - width, total_clients, width, label='Общее число клиентов')
-ax.bar(x, lost_clients, width, label='Ушедшие клиенты')
-ax.bar(x + width, new_clients, width, label='Пришедшие клиенты')
+fig, axes = plt.subplots(1, 3, figsize=(20, 5), sharey=False)
 
-ax.set_xticks(x)
-ax.set_xticklabels(months, rotation=45)
-ax.set_xlabel('Месяц')
-ax.set_ylabel('Количество уникальных клиентов')
-ax.set_title('Уникальные клиенты по месяцам: общее, ушедшие, пришедшие')
-ax.legend()
+axes[0].bar(sheet_names, total_clients, color='steelblue')
+axes[0].set_title('Общее число клиентов')
+axes[0].set_xlabel('Месяц')
+axes[0].set_ylabel('Уникальные клиенты')
+axes[0].tick_params(axis='x', rotation=45)
+add_bar_labels(axes[0], total_clients)
+
+axes[1].bar(sheet_names, lost_clients, color='indianred')
+axes[1].set_title('Ушедшие клиенты')
+axes[1].set_xlabel('Месяц')
+axes[1].tick_params(axis='x', rotation=45)
+add_bar_labels(axes[1], lost_clients)
+
+axes[2].bar(sheet_names, new_clients, color='seagreen')
+axes[2].set_title('Пришедшие клиенты')
+axes[2].set_xlabel('Месяц')
+axes[2].tick_params(axis='x', rotation=45)
+add_bar_labels(axes[2], new_clients)
 
 plt.tight_layout()
 plt.show()
