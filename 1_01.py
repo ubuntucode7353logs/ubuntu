@@ -1,11 +1,11 @@
+from dash import Dash, dcc, html
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-sheet_names = ['202301', '202302', '202303', '202304', '202305', '202306',
-               '202307', '202308', '202309', '202310', '202311', '202312']
+sheet_names = ['202301', '202302', '202303']
 
 xls = 'clients.xlsx'
 
@@ -27,58 +27,53 @@ for i, sheet in enumerate(tqdm(sheet_names, desc="Обработка месяц�
         new_clients.append(len(new))
     all_seen_clients.update(clients)
 
-fig = make_subplots(rows=1, cols=3, subplot_titles=[
-    "Общее число клиентов",
-    "Ушедшие клиенты",
-    "Пришедшие клиенты"
-])
+fig = make_subplots(rows=1, cols=3,
+                    subplot_titles=["Общее число клиентов", "Ушедшие клиенты", "Пришедшие клиенты"],
+                    horizontal_spacing=0.08)
 
 fig.add_trace(go.Bar(
-    x=sheet_names,
-    y=total_clients,
-    name="Общее число клиентов",
-    marker_color='steelblue',
-    text=total_clients,
-    textposition='outside'
-), row=1, col=1)
+    x=sheet_names, y=total_clients,
+    marker_color='rgba(70,130,180,0.8)',
+    text=total_clients, textposition='outside',
+    hovertemplate='Месяц: %{x}<br>Клиенты: %{y}<extra></extra>'),
+    row=1, col=1)
 
 fig.add_trace(go.Bar(
-    x=sheet_names,
-    y=lost_clients,
-    name="Ушедшие клиенты",
-    marker_color='indianred',
-    text=lost_clients,
-    textposition='outside'
-), row=1, col=2)
+    x=sheet_names, y=lost_clients,
+    marker_color='rgba(205,92,92,0.8)',
+    text=lost_clients, textposition='outside',
+    hovertemplate='Месяц: %{x}<br>Ушли: %{y}<extra></extra>'),
+    row=1, col=2)
 
 fig.add_trace(go.Bar(
-    x=sheet_names,
-    y=new_clients,
-    name="Пришедшие клиенты",
-    marker_color='seagreen',
+    x=sheet_names, y=new_clients,
+    marker_color='rgba(46,139,87,0.8)',
     text=[None if np.isnan(val) else val for val in new_clients],
-    textposition='outside'
-), row=1, col=3)
+    textposition='outside',
+    hovertemplate='Месяц: %{x}<br>Новые: %{y}<extra></extra>'),
+    row=1, col=3)
 
 fig.update_layout(
-    title={
-        'text': "📊 Анализ клиентской базы по месяцам – 2023",
-        'y': 0.95,
-        'x': 0.5,
-        'xanchor': 'center',
-        'yanchor': 'top',
-        'font': dict(size=24, color='darkblue', family='Arial Black')
-    },
-    height=550,
-    width=1300,
-    showlegend=False,
-    margin=dict(t=100)
-)
+    title={'text': "Анализ клиентской базы по месяцам – 2023", 'y': 0.98, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+           'font': dict(size=18, color='black', family='Helvetica Neue')},
+    plot_bgcolor='white', paper_bgcolor='white', height=400, width=1200,
+    margin=dict(t=90, l=40, r=40, b=40),
+    font=dict(family='Arial', size=10, color='black'),
+    showlegend=False)
 
-fig.update_xaxes(tickangle=45)
+fig.update_xaxes(tickangle=45, showgrid=True, gridcolor='lightgrey', zeroline=False, tickfont=dict(size=9))
+fig.update_yaxes(showgrid=True, gridcolor='lightgrey', zeroline=False, tickfont=dict(size=9))
 
-fig.update_yaxes(range=[30000, 35000], row=1, col=1)
-fig.update_yaxes(range=[30000, 35000], row=1, col=2)
-fig.update_yaxes(range=[30000, 35000], row=1, col=3)
+#fig.update_yaxes(range=[30000, 35000], row=1, col=1)
+#fig.update_yaxes(range=[30000, 35000], row=1, col=2)
+#fig.update_yaxes(range=[30000, 35000], row=1, col=3)
 
-fig.show()
+app = Dash(__name__)
+
+app.layout = html.Div(style={'maxWidth': '1200px', 'margin': '30px auto', 'padding': '25px', 'backgroundColor': '#fafafa',
+                             'boxShadow': '0 6px 25px rgba(0,0,0,0.12)', 'borderRadius': '14px', 'textAlign': 'center'}, children=[
+    html.H1("Дэшборд клиентской базы 2023", style={'fontFamily': 'Helvetica Neue', 'marginBottom': '20px'}),
+    dcc.Graph(figure=fig, config={'displayModeBar': False}),
+])
+
+app.run_server(mode='inline')
