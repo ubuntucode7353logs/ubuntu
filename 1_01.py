@@ -1,7 +1,8 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 sheet_names = ['202301', '202302', '202303', '202304', '202305', '202306',
                '202307', '202308', '202309', '202310', '202311', '202312']
@@ -26,31 +27,58 @@ for i, sheet in enumerate(tqdm(sheet_names, desc="Обработка месяц�
         new_clients.append(len(new))
     all_seen_clients.update(clients)
 
-def add_bar_labels(ax, values):
-    for i, v in enumerate(values):
-        if not np.isnan(v):
-            ax.text(i, v + max(values) * 0.01, str(int(v)), ha='center', va='bottom', fontsize=9)
+fig = make_subplots(rows=1, cols=3, subplot_titles=[
+    "Общее число клиентов",
+    "Ушедшие клиенты",
+    "Пришедшие клиенты"
+])
 
-fig, axes = plt.subplots(1, 3, figsize=(20, 5), sharey=False)
+fig.add_trace(go.Bar(
+    x=sheet_names,
+    y=total_clients,
+    name="Общее число клиентов",
+    marker_color='steelblue',
+    text=total_clients,
+    textposition='outside'
+), row=1, col=1)
 
-axes[0].bar(sheet_names, total_clients, color='steelblue')
-axes[0].set_title('Общее число клиентов')
-axes[0].set_xlabel('Месяц')
-axes[0].set_ylabel('Уникальные клиенты')
-axes[0].tick_params(axis='x', rotation=45)
-add_bar_labels(axes[0], total_clients)
+fig.add_trace(go.Bar(
+    x=sheet_names,
+    y=lost_clients,
+    name="Ушедшие клиенты",
+    marker_color='indianred',
+    text=lost_clients,
+    textposition='outside'
+), row=1, col=2)
 
-axes[1].bar(sheet_names, lost_clients, color='indianred')
-axes[1].set_title('Ушедшие клиенты')
-axes[1].set_xlabel('Месяц')
-axes[1].tick_params(axis='x', rotation=45)
-add_bar_labels(axes[1], lost_clients)
+fig.add_trace(go.Bar(
+    x=sheet_names,
+    y=new_clients,
+    name="Пришедшие клиенты",
+    marker_color='seagreen',
+    text=[None if np.isnan(val) else val for val in new_clients],
+    textposition='outside'
+), row=1, col=3)
 
-axes[2].bar(sheet_names, new_clients, color='seagreen')
-axes[2].set_title('Пришедшие клиенты')
-axes[2].set_xlabel('Месяц')
-axes[2].tick_params(axis='x', rotation=45)
-add_bar_labels(axes[2], new_clients)
+fig.update_layout(
+    title={
+        'text': "📊 Анализ клиентской базы по месяцам – 2023",
+        'y': 0.95,
+        'x': 0.5,
+        'xanchor': 'center',
+        'yanchor': 'top',
+        'font': dict(size=24, color='darkblue', family='Arial Black')
+    },
+    height=550,
+    width=1300,
+    showlegend=False,
+    margin=dict(t=100)
+)
 
-plt.tight_layout()
-plt.show()
+fig.update_xaxes(tickangle=45)
+
+fig.update_yaxes(range=[30000, 35000], row=1, col=1)
+fig.update_yaxes(range=[30000, 35000], row=1, col=2)
+fig.update_yaxes(range=[30000, 35000], row=1, col=3)
+
+fig.show()
