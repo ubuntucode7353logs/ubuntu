@@ -52,3 +52,10 @@ def remove_emojis(text):
     )
     return emoji_pattern.sub('', text)
 
+def replace_phones(text):
+    PATTERN_COMPACT = r'(?<!\d)(?:\+375(25|29|33|44)\d{7}|375(25|29|33|44)\d{7}|80(25|29|33|44)\d{7})(?!\d)'
+    PATTERN_FLEX = r'(?<!\d)(?:(?:\+?375|375)[\s\-()]*\(?(25|29|33|44)\)?(?:[\s\-()]?\d){7}|8[\s\-()]*0?\(?(25|29|33|44)\)?(?:[\s\-()]?\d){7})(?!\d)'
+
+    text = re.sub(PATTERN_COMPACT, '[TEL]', text, flags=re.VERBOSE)
+    text = re.sub(PATTERN_FLEX, '[TEL]', text, flags=re.VERBOSE)
+    return text
