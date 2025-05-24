@@ -44,7 +44,7 @@ emoji_pattern = re.compile(
         "\U0000FE00-\U0000FE0F"  # Вариации эмодзи
         "]+", flags=re.UNICODE)
 
-GREETING_PATTERN = r'\bпривет\b|\bздра?вствуй(те)?\b|\bдобрый (день|вечер|утро)\b|\bздравствуйте\b|\bздарова\b|\bхай\b|\bалло\b|\bдарова\b|\bприв\b|\bсалют\b|\bдоброе утро\b|\bдобрый вечер\b|\bдобрый день\b'
+GREETING_PATTERNS = [r'\bпривет\b', r'\bздра?вствуй(те)?\b', r'\bдобрый (день|вечер|утро)\b', r'\bздравствуйте\b', r'\bздарова\b', r'\bхай\b', r'\bалло\b', r'\bдарова\b', r'\bприв\b', r'\bсалют\b', r'\bдоброе утро\b', r'\bдобрый вечер\b', r'\bдобрый день\b']
 GREETING_REGEX = re.compile('|'.join(GREETING_PATTERNS), re.IGNORECASE)
 
 def replace_dates(text):
