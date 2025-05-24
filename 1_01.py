@@ -59,3 +59,14 @@ def replace_phones(text):
     text = re.sub(PATTERN_COMPACT, '[TEL]', text, flags=re.VERBOSE)
     text = re.sub(PATTERN_FLEX, '[TEL]', text, flags=re.VERBOSE)
     return text
+
+def replace_names(text):
+    pattern_full = r'\b[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ][а-яё]+\b'
+    pattern_initials = r'\b[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ]\.?(?:\s?[А-ЯЁ]\.?){0,1}\b'
+    pattern_name_patronym = r'\b[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ][а-яё]+(вич(ем|а|у|е|и)?|вн(а|ой|е|у|и)?)\b'
+    pattern_patronym_only = r'\b[А-ЯЁ][а-яё]+(вич(ем|а|у|е|и)?|вн(а|ой|е|у|и)?)\b'
+
+    for pattern in [pattern_full, pattern_initials, pattern_name_patronym, pattern_patronym_only]:
+        text = re.sub(pattern, '[NAME]', text)
+
+    return text
