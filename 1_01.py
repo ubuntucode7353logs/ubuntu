@@ -28,3 +28,27 @@ def replace_dates(text):
                 words[i] = '[DATE]'
     text = ' '.join(w for w in words if w)
     return text
+
+
+import re
+
+def remove_emojis(text):
+    # Универсальный диапазон символов для большинства эмодзи
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # Смайлы
+        "\U0001F300-\U0001F5FF"  # Символы и пиктограммы
+        "\U0001F680-\U0001F6FF"  # Транспорт
+        "\U0001F1E0-\U0001F1FF"  # Флаги
+        "\U00002700-\U000027BF"  # Разные символы
+        "\U0001F900-\U0001F9FF"  # Эмоции, жесты и т.п.
+        "\U0001FA70-\U0001FAFF"  # Доп. символы
+        "\U00002500-\U00002BEF"  # Разные иероглифы
+        "\U0000200D"             # Zero Width Joiner
+        "\U00002300-\U000023FF"  # Технические символы
+        "\U0000FE00-\U0000FE0F"  # Вариации эмодзи
+        "]+",
+        flags=re.UNICODE
+    )
+    return emoji_pattern.sub('', text)
+
