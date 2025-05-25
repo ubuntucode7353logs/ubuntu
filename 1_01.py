@@ -2,17 +2,37 @@ morph = pymorphy3.MorphAnalyzer()
 
 WEEKDAYS_LEMMAS = {'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'}
 RELATIVE_WORDS = {'сегодня', 'завтра', 'послезавтра'}
-MONTH_PATTERN = (r'\d{1,2}\s*(январ[яею]|феврал[яею]|март[аеу]?|апрел[яею]|ма[йяею]|июн[яею]|июл[яею]|август[аеу]?'
-                 r'|сентябр[яею]|октябр[яею]|ноябр[яею]|декабр[яею])')
+MONTH_PATTERN = (
+    r'\b\d{1,2}\s*(январ[ьяею]|феврал[ьяею]|март[аеу]?|апрел[ьяею]|ма[йяею]|июн[ьяею]|июл[ьяею]|август[аеу]?|'
+    r'сентябр[ьяею]|октябр[ьяею]|ноябр[ьяею]|декабр[ьяею])\b|'
+    r'\b(в\s+)?(январ[еюе]|феврал[еюе]|марте|апрел[еюе]|мае|июне|июле|августе|сентябр[еюе]|октябр[еюе]|ноябр[еюе]|декабр[еюе])\b'
+)
 DIGIT_DATE_PATTERN = r'\b\d{1,2}\.\d{1,2}(?:\.\d{2,4})?\b'
 TIME_POINTERS = (
-    r'(этой|этот|этом|этому|этого|следующей|следующий|следующем|следующему|следующего|'
+    r'(этой|этот|этом|этому|этого|следующей|следующий|следующем|следующему|следующего|начале|'
     r'прошлой|прошлый|прошлом|прошлому|прошлого|той|тот|том|тому|того|будущей|будущий|будущем|будущему|будущего)'
 )
 TIME_UNITS = r'(недел[аеиюе]|месяц[аеуыио]?|квартал[аеуыио]?)'
 DATE_PREPOSITIONS = r'(до|к|в|по|на|около|примерно|после)?\s*'
-NUMERIC_DAY_PATTERN = r'\b(?:до|в|на|по|к)?-?\s*\d{1,2}[\s\-]?(?:го|числ[аоуе]?)\b'
+NUMERIC_DAY_PATTERN = r'\b(?:до|в|на|по|к|во)?-?\s*\d{1,2}[\s\-]?(?:го|числ[аоуе]?)?\b'
+NUMERIC_DAY_WITH_CHISLO_PATTERN = r'\b(?:до|в|на|по|к|во)?-?\s*\d{1,2}[\s\-]?(?:го)?\s*числ(о|а|у|ом|е)\b'
 RELATIVE_DATE_PATTERN = rf'{DATE_PREPOSITIONS}{TIME_POINTERS}\s+{TIME_UNITS}'
+COMPLEX_TIME_PHRASE = (
+    r'\b(?:в|к|до|с|по)?\s*(?:начал[аеиу]|середин[аеиу]|конц[аеыуом]*)\s+'
+    r'(?:недел[иаеуы]{0,2}|месяц[аеуыио]{0,2}|квартал[аеуыио]{0,2}|'
+    r'январ[яею]|феврал[яею]|март[аеу]?|апрел[яею]|ма[йею]|июн[яею]|июл[яею]|август[аеу]?|'
+    r'сентябр[яею]|октябр[яею]|ноябр[яею]|декабр[яею])'
+)
+FULL_ADJ_WEEKDAY_PATTERN = (
+    r'\b(?:в|во|на|по|к|до)?\s*'
+    r'(?:ближайш(?:ая|ую)|следующ(?:ая|ую)|прошл(?:ая|ую)|эт(?:ая|ую))\s+'
+    r'(?:понедельник|вторник|сред(?:а|у)|четверг|пятниц(?:а|у)|суббот(?:а|у)|воскресенье)\b')
+ADJ_NUM_TIME_PATTERN = (
+    r'\b(?:в|на|по|до|к|с)?\s*(?:ближайш(?:ие|их)|следующ(?:ие|их)|прошл(?:ые|ых)|текущ(?:ие|их)|будущ(?:ие|их))\s+'
+    r'\d{1,2}\s+(?:дн[яей]|недел[иь]|месяц[аевыи]*|квартал[аевыи]*)\b')
+PREP_MONTH_PATTERN = (
+    r'\b(?:в|во|до|по|на|к|с|от|за|после|перед|около|примерно)?\s*(?:январ[яею]|феврал[яею]|март[аеу]?|апрел[яею]|ма[йею]'
+    r'|июн[яею]|июл[яею]|август[аеу]?|сентябр[яею]|октябр[яею]|ноябр[яею]|декабр[яею])\b')
 
 PATTERN_COMPACT = r'(?<!\d)(?:\+375(25|29|33|44)\d{7}|375(25|29|33|44)\d{7}|80(25|29|33|44)\d{7}|\+7\d{10}|7\d{10}|8\d{10})(?!\d)'
 PATTERN_FLEX = (
@@ -28,6 +48,8 @@ PATTERN_FULL = r'\b[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ]
 PATTERN_INITIALS = r'\b[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ]\.?(?:\s?[А-ЯЁ]\.?){0,1}\b'
 PATTERN_NAME_PATRONYM = r'\b[А-ЯЁ][а-яё]+[\s\-]+[А-ЯЁ][а-яё]+(вич(ем|а|у|е|и)?|вн(а|ой|е|у|и)?)\b'
 PATTERN_PATRONYM_ONLY = r'\b[А-ЯЁ][а-яё]+(вич(ем|а|у|е|и)?|вн(а|ой|е|у|и)?)\b'
+
+ACCOUNT_NUMBER = r'\bBY[A-Za-z0-9]{26}\b'
 
 emoji_pattern = re.compile(
         "["
@@ -49,10 +71,15 @@ GREETING_REGEX = re.compile('|'.join(GREETING_PATTERNS), re.IGNORECASE)
 
 def replace_dates(text):
     """Заменяет различные формы дат (числовые, словесные, относительные) на [DATE]."""
+    text = re.sub(FULL_ADJ_WEEKDAY_PATTERN, '[DATE]', text, flags=re.IGNORECASE)
+    text = re.sub(ADJ_NUM_TIME_PATTERN, '[DATE]', text, flags=re.IGNORECASE)
     text = re.sub(DIGIT_DATE_PATTERN, '[DATE]', text)
     text = re.sub(rf'{DATE_PREPOSITIONS}?{MONTH_PATTERN}', '[DATE]', text, flags=re.IGNORECASE)
     text = re.sub(RELATIVE_DATE_PATTERN, '[DATE]', text, flags=re.IGNORECASE)
+    text = re.sub(NUMERIC_DAY_WITH_CHISLO_PATTERN, '[DATE]', text, flags=re.IGNORECASE)
     text = re.sub(NUMERIC_DAY_PATTERN, '[DATE]', text, flags=re.IGNORECASE)
+    text = re.sub(COMPLEX_TIME_PHRASE, '[DATE]', text, flags=re.IGNORECASE)
+    text = re.sub(PREP_MONTH_PATTERN, '[DATE]', text, flags=re.IGNORECASE)
 
     words = text.split()
     for i, word in enumerate(words):
@@ -60,7 +87,7 @@ def replace_dates(text):
         parsed = morph.parse(clean_word)[0]
 
         if parsed.normal_form in WEEKDAYS_LEMMAS:
-            if i > 0 and words[i-1].lower() in ['до', 'в', 'по', 'на', 'к']:
+            if i > 0 and words[i-1].lower() in ['до', 'в', 'во', 'по', 'на', 'к']:
                 words[i-1] = '[DATE]'
                 words[i] = ''
             else:
@@ -124,6 +151,11 @@ def replace_amounts(text):
     return text
 
 
+def replace_account_numbers(text):
+    """Удаляет из текста номера счетов."""
+    return re.sub(ACCOUNT_NUMBER, '[ACCOUNT]', text, flags=re.IGNORECASE)
+
+
 def remove_greetings(text):
     """Удаляет из текста распространённые приветствия."""
     return GREETING_REGEX.sub('', text).strip()
@@ -138,3 +170,8 @@ def remove_punctuation_except_last(text):
     text_wo_punct = re.sub(r'[.,!?;:]', '', text)
     text = text_wo_punct.rstrip() + last_punct if last_punct else text_wo_punct
     return text.strip()
+
+
+def remove_words(text, words):
+    """Удаляет из текста все слова, перечисленные в списке words."""
+    return re.sub(r'\s+', ' ', re.sub(r'\b(?:' + '|'.join(map(re.escape, words)) + r')\b', '', text, flags=re.I)).strip()
