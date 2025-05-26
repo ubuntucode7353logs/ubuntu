@@ -1,199 +1,38 @@
 import pandas as pd
 import numpy as np
-from scipy.stats import chi2_contingency
-import matplotlib.pyplot as plt
-import seaborn as sns
-all_dfs = []
-for sheet_name in xls.sheet_names:
-    df_sheet = pd.read_excel(xls, sheet_name=sheet_name)
-    
-    # Добавляем колонку с датой отчёта
-    df_sheet['report_date'] = pd.to_datetime(sheet_name, format='%Y%m')
-    
-    # Преобразуем даты регистрации в datetime
-    df_sheet['REGDATE'] = pd.to_datetime(df_sheet['REGDATE'], errors='coerce')
-    df_sheet['BASEMINDATE'] = pd.to_datetime(df_sheet['BASEMINDATE'], errors='coerce')
-    
-    # Считаем возраст в днях на момент отчёта
-    df_sheet['age_days_REGDATE'] = (df_sheet['report_date'] - df_sheet['REGDATE']).dt.days
-    df_sheet['age_days_BASEMINDATE'] = (df_sheet['report_date'] - df_sheet['BASEMINDATE']).dt.days
-    
-    df_sheet = df_sheet.drop(columns=['REGDATE', 'BASEMINDATE'])
-    df_sheet['target'] = df_sheet['target'].fillna(0)
-    
-    all_dfs.append(df_sheet)
-
-df_all = pd.concat(all_dfs, ignore_index=True)
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-plt.figure(figsize=(8,6))
-sns.boxplot(x='target', y='age_days_REGDATE', data=df_all)
-plt.xticks([0,1], ['Остался', 'Ушёл'])
-plt.xlabel('Статус клиента')
-plt.ylabel('Возраст клиента (дней)')
-plt.title('Распределение возраста по статусу клиента')
-plt.show()
-
-from scipy.stats import ttest_ind
-
-group0 = df_all[df_all['target'] == 0]['age_days_REGDATE'].dropna()
-group1 = df_all[df_all['target'] == 1]['age_days_REGDATE'].dropna()
-
-t_stat, p_val = ttest_ind(group0, group1, equal_var=False)  # Welch's t-test
-
-print(f"t-statistic = {t_stat:.3f}, p-value = {p_val:.4f}")
-
-def phi_coefficient(contingency):
-    """Вычислить коэффициент Фи из таблицы сопряжённости 2x2"""
-    # таблица 2x2: [[a, b], [c, d]]
-    a = contingency.iloc[0,0]
-    b = contingency.iloc[0,1]
-    c = contingency.iloc[1,0]
-    d = contingency.iloc[1,1]
-    numerator = (a*d - b*c)
-    denominator = np.sqrt((a+b)*(c+d)*(a+c)*(b+d))
-    if denominator == 0:
-        return np.nan
-    return numerator / denominator
-
-def odds_ratio(contingency):
-    """Вычислить Odds Ratio из таблицы сопряжённости 2x2"""
-    a = contingency.iloc[0,0]
-    b = contingency.iloc[0,1]
-    c = contingency.iloc[1,0]
-    d = contingency.iloc[1,1]
-    # Для избежания деления на 0 добавим 0.5 к ячейкам (Haldane-Anscombe correction)
-    a += 0.5
-    b += 0.5
-    c += 0.5
-    d += 0.5
-    return (a*d) / (b*c)
-
-def analyze_bool_vars(df, target_col, bool_vars):
-    results = []
-    for var in bool_vars:
-        print(f"--- Анализ переменной: {var} ---")
-        contingency = pd.crosstab(df[var], df[target_col])
-        print("Таблица сопряжённости:")
-        print(contingency)
-        
-        # Хи-квадрат тест
-        chi2, p, dof, ex = chi2_contingency(contingency)
-        print(f"Chi2: {chi2:.3f}, p-value: {p:.4f}")
-        
-        # Коэффициент Фи
-        if contingency.shape == (2, 2):
-            phi = phi_coefficient(contingency)
-            oratio = odds_ratio(contingency)
-            print(f"Phi coefficient: {phi:.3f}")
-            print(f"Odds Ratio: {oratio:.3f}")
-        else:
-            phi = np.nan
-            oratio = np.nan
-            print("Коэффициент Фи и Odds Ratio рассчитываются только для таблиц 2x2")
-        
-        # Визуализация
-        proportions = contingency.div(contingency.sum(axis=1), axis=0)
-        proportions.plot(kind='bar', stacked=True)
-        plt.title(f"Доли таргета по значениям {var}")
-        plt.xlabel(var)
-        plt.ylabel("Доля")
-        plt.legend(title=target_col)
-        plt.show()
-        
-        results.append({
-            'variable': var,
-            'chi2': chi2,
-            'p_value': p,
-            'phi_coefficient': phi,
-            'odds_ratio': oratio
-        })
-    return pd.DataFrame(results)
-
-# Пример вызова функции
-# df — датафрейм, target — имя колонки с таргетом (0/1), bool_vars — список булевых переменных
-# results_df = analyze_bool_vars(df, 'target', bool_vars)
-# print(results_df)
-
-
-
-import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2_contingency
-import numpy as np
 
-# Биннинг возраста
-df_all['age_bin'] = pd.cut(df_all['age_days_REGDATE'], bins=10)
-
-# Группировка: частота ухода по биннам
-bin_stats = df_all.groupby('age_bin')['target'].agg(['mean', 'count']).reset_index()
-bin_stats.rename(columns={'mean': 'leave_rate'}, inplace=True)
-
-# Хи-квадрат тест зависимости ухода от бина возраста
-contingency = pd.crosstab(df_all['age_bin'], df_all['target'])
-chi2, p, dof, expected = chi2_contingency(contingency)
-
-# График
-plt.figure(figsize=(10,6))
-sns.lineplot(x=bin_stats['age_bin'].astype(str), y='leave_rate', data=bin_stats, marker='o')
-plt.xticks(rotation=45)
-plt.ylabel('Доля ушедших')
-plt.xlabel('Возраст клиента (дней) — бины')
-plt.title('Зависимость ухода от возраста клиента')
-plt.grid(True)
-
-# Добавим p-value
-plt.annotate(f'p-value = {p:.4f}', xy=(0.05, 0.95), xycoords='axes fraction',
-             fontsize=12, bbox=dict(boxstyle="round", fc="w"))
-
-plt.tight_layout()
-plt.show()
-sns.regplot(x='age_days_REGDATE', y='target', data=df_all,
-            logistic=True, scatter_kws={'s': 10, 'alpha': 0.3})
-plt.xlabel('Возраст клиента (дней)')
-plt.ylabel('Вероятность ухода')
-plt.title('Логистическая зависимость ухода от возраста')
-plt.grid(True)
-plt.show()
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import chi2_contingency
-import pandas as pd
-
-# Убедимся, что BASEMINDATE — в формате datetime
+# Убедимся, что даты в формате datetime
 df_all['BASEMINDATE'] = pd.to_datetime(df_all['BASEMINDATE'], errors='coerce')
+df_all['report_date'] = pd.to_datetime(df_all['report_date'], errors='coerce')
 
-# Группировка по месяцу начала обслуживания
-df_all['BASE_MONTH'] = df_all['BASEMINDATE'].dt.to_period('M').astype(str)
+# Возраст клиента в месяцах
+df_all['client_months'] = ((df_all['report_date'] - df_all['BASEMINDATE']).dt.days / 30.44).astype(int)
 
-# Удалим NaN
-df_filtered = df_all.dropna(subset=['BASE_MONTH', 'target'])
+# Фильтрация от аномалий
+df_filtered = df_all[(df_all['client_months'] >= 0) & df_all['target'].notna()]
 
-# Группируем: считаем долю ушедших
-month_stats = df_filtered.groupby('BASE_MONTH')['target'].agg(['mean', 'count']).reset_index()
+# Группировка по возрасту в месяцах
+month_stats = df_filtered.groupby('client_months')['target'].agg(['mean', 'count']).reset_index()
 month_stats.rename(columns={'mean': 'leave_rate'}, inplace=True)
 
 # Хи-квадрат тест
-contingency = pd.crosstab(df_filtered['BASE_MONTH'], df_filtered['target'])
+contingency = pd.crosstab(df_filtered['client_months'], df_filtered['target'])
 chi2, p, dof, expected = chi2_contingency(contingency)
 
 # График
 plt.figure(figsize=(14,6))
-sns.barplot(x='BASE_MONTH', y='leave_rate', data=month_stats, color='mediumseagreen')
-plt.xticks(rotation=90)
+sns.lineplot(x='client_months', y='leave_rate', data=month_stats, marker='o', color='darkorange')
+plt.title('Зависимость ухода от времени пребывания клиента (в месяцах)')
+plt.xlabel('Сколько месяцев клиент с нами')
 plt.ylabel('Доля ушедших')
-plt.xlabel('Месяц начала обслуживания (BASEMINDATE)')
-plt.title('Влияние месяца начала обслуживания на вероятность ухода')
-plt.grid(axis='y')
+plt.grid(True)
 
-# p-value
+# Добавим p-value
 plt.annotate(f'p-value = {p:.4f}', xy=(0.01, 0.95), xycoords='axes fraction',
              fontsize=12, bbox=dict(boxstyle="round", fc="w"))
 
 plt.tight_layout()
 plt.show()
-
