@@ -1,19 +1,25 @@
-# Пример списков переменных
-bool_vars = ['PACK1', 'PACK2', 'PACK3', 'act1', 'act2', 'act3', 'zp1', 'zp2', 'zp3',
-             'newb', 'otherbdt', 'otherbct', 'newpmnt']
+import pandas as pd
+from tqdm import tqdm
 
-# Функция расчета процента ненулевых значений
-def calc_nonzero_percentage_df(df, cols):
-    data = []
-    for col in cols:
-        nonzero_count = (df[col] != 0).sum()
-        total = df[col].notna().sum()
-        percent = 100 * nonzero_count / total if total > 0 else np.nan
-        data.append({'variable': col, 'nonzero_count': nonzero_count, 'total': total, 'nonzero_percent': percent})
-    return pd.DataFrame(data).sort_values(by='nonzero_percent', ascending=False).reset_index(drop=True)
+# Словарь для хранения пропущенных значений
+missing_dict = {}
 
-# Применение к булевым переменным
-bool_nonzero_df = calc_nonzero_percentage_df(df_all, bool_vars)
+# Проходим по всем листам
+for sheet_name in tqdm(sheet_names, desc="Проверка пропущенных значений:"):
+    sheet = base.parse(sheet_name=sheet_name)
+    missing = sheet.isnull().sum()
+    missing = missing[missing > 0]
+    for col, count in missing.items():
+        if col not in missing_dict:
+            missing_dict[col] = {}
+        missing_dict[col][sheet_name] = count
 
-# Вывод результата
-bool_nonzero_df
+# Преобразуем в DataFrame
+missing_matrix = pd.DataFrame(missing_dict).T.fillna(0).astype(int)
+
+# Упорядочим столбцы по времени (если они в формате 'YYYYMM')
+missing_matrix = missing_matrix[sorted(missing_matrix.columns)]
+
+# Выводим таблицу
+missing_matrix
+
