@@ -159,3 +159,41 @@ plt.title('Логистическая зависимость ухода от в�
 plt.grid(True)
 plt.show()
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import chi2_contingency
+import pandas as pd
+
+# Убедимся, что BASEMINDATE — в формате datetime
+df_all['BASEMINDATE'] = pd.to_datetime(df_all['BASEMINDATE'], errors='coerce')
+
+# Группировка по месяцу начала обслуживания
+df_all['BASE_MONTH'] = df_all['BASEMINDATE'].dt.to_period('M').astype(str)
+
+# Удалим NaN
+df_filtered = df_all.dropna(subset=['BASE_MONTH', 'target'])
+
+# Группируем: считаем долю ушедших
+month_stats = df_filtered.groupby('BASE_MONTH')['target'].agg(['mean', 'count']).reset_index()
+month_stats.rename(columns={'mean': 'leave_rate'}, inplace=True)
+
+# Хи-квадрат тест
+contingency = pd.crosstab(df_filtered['BASE_MONTH'], df_filtered['target'])
+chi2, p, dof, expected = chi2_contingency(contingency)
+
+# График
+plt.figure(figsize=(14,6))
+sns.barplot(x='BASE_MONTH', y='leave_rate', data=month_stats, color='mediumseagreen')
+plt.xticks(rotation=90)
+plt.ylabel('Доля ушедших')
+plt.xlabel('Месяц начала обслуживания (BASEMINDATE)')
+plt.title('Влияние месяца начала обслуживания на вероятность ухода')
+plt.grid(axis='y')
+
+# p-value
+plt.annotate(f'p-value = {p:.4f}', xy=(0.01, 0.95), xycoords='axes fraction',
+             fontsize=12, bbox=dict(boxstyle="round", fc="w"))
+
+plt.tight_layout()
+plt.show()
+
