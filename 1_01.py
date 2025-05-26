@@ -1,47 +1,16 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import chi2_contingency
+from scipy.stats import mannwhitneyu
 
-# Преобразование дат
-df_all['BASEMINDATE'] = pd.to_datetime(df_all['BASEMINDATE'], errors='coerce')
-df_all['report_date'] = pd.to_datetime(df_all['report_date'], errors='coerce')
+# Разобьём возраст на группы (например, кварталы)
+df_all['age_bin'] = pd.cut(df_all['client_months'], bins=np.arange(0, df_all['client_months'].max()+3, 3), right=False)
 
-# Считаем возраст клиента в месяцах
-df_all['client_months'] = ((df_all['report_date'] - df_all['BASEMINDATE']).dt.days / 30.44).astype(int)
+# Среднее pr по бинам
+bin_stats = df_all.groupby('age_bin')['pr'].mean()
 
-# Отфильтруем валидные строки
-df_filtered = df_all[(df_all['client_months'] >= 0) & df_all['target'].notna()]
+print(bin_stats)
 
-# Группировка по кварталам (каждые 3 месяца)
-df_filtered['months_bin'] = pd.cut(
-    df_filtered['client_months'],
-    bins=np.arange(0, df_filtered['client_months'].max() + 3, 3),
-    right=False,
-    include_lowest=True
-)
+# Тест Манна-Уитни между двумя группами (например, младшие и старшие)
+group1 = df_all[df_all['client_months'] <= 12]['pr'].dropna()
+group2 = df_all[df_all['client_months'] > 12]['pr'].dropna()
 
-# Статистика по квартальным биннам
-bin_stats = df_filtered.groupby('months_bin')['target'].agg(['mean', 'count']).reset_index()
-bin_stats.rename(columns={'mean': 'leave_rate'}, inplace=True)
-
-# Хи-квадрат тест
-contingency = pd.crosstab(df_filtered['months_bin'], df_filtered['target'])
-chi2, p, dof, expected = chi2_contingency(contingency)
-
-# Гистограмма
-plt.figure(figsize=(14,6))
-sns.barplot(x=bin_stats['months_bin'].astype(str), y='leave_rate', data=bin_stats, color='steelblue')
-plt.xticks(rotation=45)
-plt.title('Уход клиентов в зависимости от срока пребывания (по кварталам)')
-plt.xlabel('Сколько месяцев клиент с нами (квартальные интервалы)')
-plt.ylabel('Доля ушедших')
-plt.grid(axis='y')
-
-# Добавим p-value
-plt.annotate(f'p-value = {p:.4f}', xy=(0.01, 0.95), xycoords='axes fraction',
-             fontsize=12, bbox=dict(boxstyle="round", fc="w"))
-
-plt.tight_layout()
-plt.show()
+stat, p = mannwhitneyu(group1, group2)
+print(f'Mann-Whitney U тест: stat={stat}, p-value={p}')
