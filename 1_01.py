@@ -118,3 +118,44 @@ def analyze_bool_vars(df, target_col, bool_vars):
 # print(results_df)
 
 
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import chi2_contingency
+import numpy as np
+
+# Биннинг возраста
+df_all['age_bin'] = pd.cut(df_all['age_days_REGDATE'], bins=10)
+
+# Группировка: частота ухода по биннам
+bin_stats = df_all.groupby('age_bin')['target'].agg(['mean', 'count']).reset_index()
+bin_stats.rename(columns={'mean': 'leave_rate'}, inplace=True)
+
+# Хи-квадрат тест зависимости ухода от бина возраста
+contingency = pd.crosstab(df_all['age_bin'], df_all['target'])
+chi2, p, dof, expected = chi2_contingency(contingency)
+
+# График
+plt.figure(figsize=(10,6))
+sns.lineplot(x=bin_stats['age_bin'].astype(str), y='leave_rate', data=bin_stats, marker='o')
+plt.xticks(rotation=45)
+plt.ylabel('Доля ушедших')
+plt.xlabel('Возраст клиента (дней) — бины')
+plt.title('Зависимость ухода от возраста клиента')
+plt.grid(True)
+
+# Добавим p-value
+plt.annotate(f'p-value = {p:.4f}', xy=(0.05, 0.95), xycoords='axes fraction',
+             fontsize=12, bbox=dict(boxstyle="round", fc="w"))
+
+plt.tight_layout()
+plt.show()
+sns.regplot(x='age_days_REGDATE', y='target', data=df_all,
+            logistic=True, scatter_kws={'s': 10, 'alpha': 0.3})
+plt.xlabel('Возраст клиента (дней)')
+plt.ylabel('Вероятность ухода')
+plt.title('Логистическая зависимость ухода от возраста')
+plt.grid(True)
+plt.show()
+
