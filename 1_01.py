@@ -24,11 +24,11 @@ chi2, p, dof, expected = chi2_contingency(contingency)
 
 # График
 plt.figure(figsize=(14,6))
-sns.lineplot(x='client_months', y='leave_rate', data=month_stats, marker='o', color='darkorange')
-plt.title('Зависимость ухода от времени пребывания клиента (в месяцах)')
+sns.barplot(x='client_months', y='leave_rate', data=month_stats, color='cornflowerblue')
+plt.title('Зависимость ухода от срока пребывания клиента (в месяцах)')
 plt.xlabel('Сколько месяцев клиент с нами')
 plt.ylabel('Доля ушедших')
-plt.grid(True)
+plt.grid(axis='y')
 
 # Добавим p-value
 plt.annotate(f'p-value = {p:.4f}', xy=(0.01, 0.95), xycoords='axes fraction',
