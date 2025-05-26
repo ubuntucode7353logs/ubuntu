@@ -25,13 +25,25 @@ for sheet_name in xls.sheet_names:
 
 df_all = pd.concat(all_dfs, ignore_index=True)
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+
 plt.figure(figsize=(8,6))
 sns.boxplot(x='target', y='age_days_REGDATE', data=df_all)
 plt.xticks([0,1], ['Остался', 'Ушёл'])
-plt.xlabel('Статус клиента (таргет)')
-plt.ylabel('Возраст клиента (дней с REGDATE)')
-plt.title('Зависимость возраста клиента и ухода')
+plt.xlabel('Статус клиента')
+plt.ylabel('Возраст клиента (дней)')
+plt.title('Распределение возраста по статусу клиента')
 plt.show()
+
+from scipy.stats import ttest_ind
+
+group0 = df_all[df_all['target'] == 0]['age_days_REGDATE'].dropna()
+group1 = df_all[df_all['target'] == 1]['age_days_REGDATE'].dropna()
+
+t_stat, p_val = ttest_ind(group0, group1, equal_var=False)  # Welch's t-test
+
+print(f"t-statistic = {t_stat:.3f}, p-value = {p_val:.4f}")
 
 def phi_coefficient(contingency):
     """Вычислить коэффициент Фи из таблицы сопряжённости 2x2"""
