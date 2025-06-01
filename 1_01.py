@@ -1,3 +1,4 @@
+df['REGDATE'] = pd.to_datetime(df['REGDATE'], origin='1899-12-30', unit='d', errors='coerce')
 df_all['BASEMINDATE'] = pd.to_datetime(df_all['BASEMINDATE'], errors='coerce')
 df_all['report_date'] = pd.to_datetime(df_all['report_date'], errors='coerce')
 
