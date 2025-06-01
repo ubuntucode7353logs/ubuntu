@@ -1,4 +1,7 @@
 df = pd.read_excel("file.xlsx", sheet_name="202301", parse_dates=['REGDATE', 'BASEMINDATE'])
+
+df['REGDATE'] = pd.to_datetime(df['REGDATE'], errors='coerce', dayfirst=True)
+
 df_all['BASEMINDATE'] = pd.to_datetime(df_all['BASEMINDATE'], errors='coerce')
 df_all['report_date'] = pd.to_datetime(df_all['report_date'], errors='coerce')
 
