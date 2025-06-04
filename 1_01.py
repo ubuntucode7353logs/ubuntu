@@ -1,44 +1,83 @@
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+from sklearn.inspection import permutation_importance
 
-# Твои данные (пример)
-data = [
-    [{'feature': 'dcts1', 'nonzero_count': 27399, 'percent_nonzero': 86.8376},
-     {'feature': 'dcts2', 'nonzero_count': 28520, 'percent_nonzero': 90.3905},
-     {'feature': 'dcts3', 'nonzero_count': 29133, 'percent_nonzero': 92.3333},
-     {'feature': 'dctq1', 'nonzero_count': 24656, 'percent_nonzero': 78.1440},
-     {'feature': 'dctq2', 'nonzero_count': 25634, 'percent_nonzero': 81.2437},
-     {'feature': 'dctq3', 'nonzero_count': 26064, 'percent_nonzero': 82.6065},
-     {'feature': 'ddts1', 'nonzero_count': 28773, 'percent_nonzero': 91.1923},
-     {'feature': 'ddts2', 'nonzero_count': 30163, 'percent_nonzero': 95.5977},
-     {'feature': 'ddts3', 'nonzero_count': 30858, 'percent_nonzero': 97.8005},
-     {'feature': 'ddtq1', 'nonzero_count': 27704}]  # Заметим: нет percent_nonzero!
-    # Добавь другие месяцы по аналогии, если нужно
-]
+perm_importances_list = []
 
-# Объединяем всё в один DataFrame
-df_all = pd.concat([pd.DataFrame(sheet) for sheet in data], ignore_index=True)
+for i, sheet_name in enumerate(tqdm(sheet_names, desc="Обработка месяцев")):
+    df_sheet = base.parse(sheet_name=sheet_name)
+    df_sheet['pr'] = df_sheet['pr'].fillna(0)
 
-# Убираем строки без percent_nonzero
-df_all = df_all.dropna(subset=['percent_nonzero'])
+    X_percent, X_bool = df_sheet[percent_features], df_sheet[bool_features]
+    y = df_sheet['pr']
 
-# Группируем по признаку и считаем среднее
-df_avg = df_all.groupby('feature', as_index=False)['percent_nonzero'].mean()
+    X_percent_scaled = StandardScaler().fit_transform(X_percent)
+    X_all = np.hstack([X_percent_scaled, X_bool.values])
+    feature_names = percent_features + bool_features
 
-# Строим график
-plt.figure(figsize=(10, 6))
-sns.barplot(data=df_avg, x='feature', y='percent_nonzero', palette='crest')
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_all, y, test_size=0.3, stratify=y, random_state=42
+    )
 
-# Добавляем подписи над столбцами
-for i, row in df_avg.iterrows():
-    plt.text(i, row['percent_nonzero'] + 0.5, f"{row['percent_nonzero']:.1f}%",
-             ha='center', va='bottom', fontsize=8)
+    model = LogisticRegression(class_weight='balanced', max_iter=1000)
+    model.fit(X_train, y_train)
 
-plt.title('Средняя заполненность признаков (в процентах)', fontsize=14)
-plt.ylabel('Процент заполненности')
-plt.xlabel('')
-plt.ylim(0, 100)
-plt.grid(axis='y')
-plt.tight_layout()
-plt.show()
+    y_proba = model.predict_proba(X_test)[:, 1]
+    roc_auc = roc_auc_score(y_test, y_proba)
+    roc_aucs.append(roc_auc)
+
+    # Коэффициенты логрегрессии
+    coefs = pd.DataFrame({
+        'feature': feature_names,
+        'coefficient': model.coef_[0]
+    })
+    coefs_list.append(coefs)
+
+    # Permutation Importance
+    result = permutation_importance(
+        model, X_test, y_test, n_repeats=10, random_state=42, scoring='roc_auc'
+    )
+    perm_df = pd.DataFrame({
+        'feature': feature_names,
+        'importance_mean': result.importances_mean,
+        'importance_std': result.importances_std
+    }).sort_values(by='importance_mean', ascending=False)
+    perm_importances_list.append(perm_df)
+
+    # Визуализация Permutation Importance
+    top_perm = perm_df.head(15)
+    sns.barplot(
+        data=top_perm, x='importance_mean', y='feature', palette='viridis', ax=axes[i]
+    )
+    axes[i].set_title(f'Лист {sheet_name}\nPerm ROC AUC: {roc_auc:.3f}')
+    axes[i].grid(True)
+
+
+import shap
+
+# 1. Загрузка нужного листа
+df_sheet = base.parse('202312')
+df_sheet['pr'] = df_sheet['pr'].fillna(0)
+
+X_percent, X_bool = df_sheet[percent_features], df_sheet[bool_features]
+y = df_sheet['pr']
+
+# 2. Масштабирование и объединение
+X_percent_scaled = StandardScaler().fit_transform(X_percent)
+X_all = np.hstack([X_percent_scaled, X_bool.values])
+feature_names = percent_features + bool_features
+X_df = pd.DataFrame(X_all, columns=feature_names)
+
+# 3. Трейн/тест
+X_train, X_test, y_train, y_test = train_test_split(
+    X_df, y, test_size=0.3, stratify=y, random_state=42
+)
+
+# 4. Модель
+model = LogisticRegression(class_weight='balanced', max_iter=1000)
+model.fit(X_train, y_train)
+
+# 5. SHAP объяснения
+explainer = shap.Explainer(model, X_train, feature_names=feature_names)
+shap_values = explainer(X_test)
+
+# 6. Глобальное объяснение (summary plot)
+shap.summary_plot(shap_values, X_test, max_display=15)
