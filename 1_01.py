@@ -1,27 +1,95 @@
-0 9 * * * /usr/bin/python3 /путь/до/скрипта.py
-import time
-from datetime import datetime, timedelta
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return window.dash_clientside.no_update;
+        const textArea = document.getElementById('output-text-1');
+        if (textArea) {
+            textArea.select();
+            document.execCommand('copy');
+        }
+        return true;
+    }
+    """,
+    Output("copy-toast-1", "is_open"),
+    Input("copy-btn-1", "n_clicks")
+)
 
-def time_until_end():
-    now = datetime.now()
-    # Время окончания — сегодня в 17:00
-    end_time = now.replace(hour=17, minute=0, second=0, microsecond=0)
-    if now > end_time:
-        # Если время уже прошло, то возвращаем 0
-        return 0
-    return (end_time - now).total_seconds()
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return window.dash_clientside.no_update;
+        const textArea = document.getElementById('output-text-2');
+        if (textArea) {
+            textArea.select();
+            document.execCommand('copy');
+        }
+        return true;
+    }
+    """,
+    Output("copy-toast-2", "is_open"),
+    Input("copy-btn-2", "n_clicks")
+)
 
-def main():
-    duration = time_until_end()
-    print(f"Скрипт будет работать примерно {duration / 60:.2f} минут.")
-    
-    start_time = time.time()
-    while time.time() - start_time < duration:
-        # Здесь основная логика скрипта
-        print("Работаю...")
-        time.sleep(10)  # пауза между итерациями, чтобы не грузить процессор
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return window.dash_clientside.no_update;
+        const textArea = document.getElementById('output-text-3');
+        if (textArea) {
+            textArea.select();
+            document.execCommand('copy');
+        }
+        return true;
+    }
+    """,
+    Output("copy-toast-3", "is_open"),
+    Input("copy-btn-3", "n_clicks")
+)
 
-    print("Время работы завершено — выхожу.")
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return window.dash_clientside.no_update;
+        const textArea = document.getElementById('output-personal-1');
+        if (textArea) {
+            textArea.select();
+            document.execCommand('copy');
+        }
+        return true;
+    }
+    """,
+    Output("copy-toast-personal-1", "is_open"),
+    Input("copy-btn-personal-1", "n_clicks")
+)
 
-if __name__ == "__main__":
-    main()
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return window.dash_clientside.no_update;
+        const textArea = document.getElementById('output-personal-2');
+        if (textArea) {
+            textArea.select();
+            document.execCommand('copy');
+        }
+        return true;
+    }
+    """,
+    Output("copy-toast-personal-2", "is_open"),
+    Input("copy-btn-personal-2", "n_clicks")
+)
+
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return window.dash_clientside.no_update;
+        const textArea = document.getElementById('output-personal-3');
+        if (textArea) {
+            textArea.select();
+            document.execCommand('copy');
+        }
+        return true;
+    }
+    """,
+    Output("copy-toast-personal-3", "is_open"),
+    Input("copy-btn-personal-3", "n_clicks")
+)
