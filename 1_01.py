@@ -79,3 +79,67 @@ def evaluate_model(y_true, y_pred, y_proba, name):
 
 evaluate_model(y_test, y_pred1, y_proba1, "Модель 1: class_weight='balanced'")
 evaluate_model(y_test, y_pred2, y_proba2, "Модель 2: oversampling + интерсепт")
+
+
+bins = [-np.inf, -500, -200, -100, -50, -10, 10, 50, 100, 200, 500, np.inf]
+labels = [
+    'резкое падение',
+    'сильное падение',
+    'значительное падение',
+    'умеренное падение',
+    'лёгкое падение',
+    'стабильно',
+    'лёгкий рост',
+    'умеренный рост',
+    'значительный рост',
+    'сильный рост',
+    'резкий рост'
+]
+
+# Категоризация
+df['delta_turnover_cat'] = pd.cut(df['delta_turnover'], bins=bins, labels=labels)
+
+# Проверим результат
+print(df['delta_turnover_cat'].value_counts().sort_index())
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+plt.figure(figsize=(12, 5))
+sns.countplot(data=df, x='delta_turnover_cat', order=labels)
+plt.xticks(rotation=45)
+plt.title("Категории изменения оборота (11 групп)")
+plt.xlabel("Категория")
+plt.ylabel("Количество клиентов")
+plt.tight_layout()
+plt.show()
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Список процентных признаков
+percent_features = ['delta_turnover', 'change_in_spending', 'margin_change']  # примеры
+
+# Цикл по фичам
+for feature in percent_features:
+    plt.figure(figsize=(14, 5))
+
+    # Гистограмма
+    plt.subplot(1, 2, 1)
+    sns.histplot(df[feature], bins=100, kde=True)
+    plt.title(f"Распределение: {feature}")
+    plt.xlabel("Значение (%)")
+    plt.ylabel("Количество")
+
+    # Boxplot (выбросы)
+    plt.subplot(1, 2, 2)
+    sns.boxplot(x=df[feature])
+    plt.title(f"Boxplot: {feature}")
+
+    plt.tight_layout()
+    plt.show()
+
+    # Статистика
+    print(f"\n📊 Статистика по признаку: {feature}")
+    print(df[feature].describe(percentiles=[.01, .05, .25, .5, .75, .95, .99]))
+    print("-" * 80)
