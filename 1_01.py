@@ -159,3 +159,19 @@ labels = list(range(11))  # [0, 1, ..., 10]
 # Категоризация
 df['delta_turnover_cat'] = pd.cut(df['delta_turnover'], bins=bins, labels=labels).astype(int)
 
+n = len(percent_features)
+cols = 3
+rows = (n + cols - 1) // cols  # округление вверх
+
+plt.figure(figsize=(cols * 5, rows * 4))
+
+for i, feature in enumerate(percent_features):
+    plt.subplot(rows, cols, i + 1)
+    cat_col = f'{feature}_cat'
+    sns.countplot(data=df, x=cat_col, palette='viridis')
+    plt.title(f'Категория: {feature}')
+    plt.xlabel("Категория (0=резкое падение, 10=резкий рост)")
+    plt.ylabel("Количество")
+    plt.tight_layout()
+
+plt.show()
