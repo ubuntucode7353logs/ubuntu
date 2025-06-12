@@ -143,3 +143,19 @@ for feature in percent_features:
     print(f"\n📊 Статистика по признаку: {feature}")
     print(df[feature].describe(percentiles=[.01, .05, .25, .5, .75, .95, .99]))
     print("-" * 80)
+
+import numpy as np
+import pandas as pd
+
+# Пример: колонка с процентом изменения (можно заменить на свою)
+# df['delta_turnover'] — процентный признак
+
+# Границы (11 интервалов)
+bins = [-np.inf, -500, -200, -100, -50, -10, 10, 50, 100, 200, 500, np.inf]
+
+# Цифровые метки от 0 до 10
+labels = list(range(11))  # [0, 1, ..., 10]
+
+# Категоризация
+df['delta_turnover_cat'] = pd.cut(df['delta_turnover'], bins=bins, labels=labels).astype(int)
+
